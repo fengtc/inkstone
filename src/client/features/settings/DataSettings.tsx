@@ -221,6 +221,9 @@ export function DataSettings() {
             await run('import-folder', async () => {
                 try {
                     const markdownFiles = files.filter((file) => /\.(md|markdown|txt)$/i.test(file.name));
+                    const totalBytes = markdownFiles.reduce((sum, file) => sum + file.size, 0);
+                    if (markdownFiles.length > 500) throw new Error(t('settings.import_folder_file_count_limit', { value0: 500, value1: markdownFiles.length }));
+                    if (totalBytes > 64 * 1024 * 1024) throw new Error(t('settings.import_folder_size_limit', { value0: 64 }));
                     const paths = markdownFiles.map((file) => file.webkitRelativePath || file.name);
                     const result = await api.transfer.import(markdownFiles, 'newer', undefined, paths, importTargetFolderId);
                     await reportImport(result);

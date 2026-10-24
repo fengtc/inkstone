@@ -689,6 +689,8 @@ export const ZH_CN_MESSAGES = {
     "settings.import": "导入",
     "settings.import_markdown_folder": "导入 Markdown 文件夹",
     "settings.import_markdown_folder_description": "每个子目录会创建为 Inkstone 文件夹，只导入 Markdown 和文本文件。",
+    "settings.import_folder_file_count_limit": "此文件夹包含 {value1} 个文件，单次最多导入 {value0} 个 Markdown 文件。",
+    "settings.import_folder_size_limit": "此文件夹超过单次导入 {value0} MB 的大小限制。",
     "settings.import_to_root": "导入到根目录",
     "settings.select_folder": "选择文件夹",
     "settings.import_completed": "导入完成",

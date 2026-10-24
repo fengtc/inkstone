@@ -79,8 +79,12 @@ export function t(key: MessageKey, params?: Params): string {
 }
 export function translateApiError(code: string, fallback: string): string {
     const key = apiCodeMessages[code];
-    if (key)
-        return t(key);
+  if (key) {
+    if (code === 'bad_request' || code === 'payload_too_large') {
+      return `${t(key)}: ${translateServiceMessage(fallback)}`
+    }
+    return t(key)
+  }
     return fallback ? translateServiceMessage(fallback) : t('api.error.unknown');
 }
 export function translateServiceMessage(message: string | null | undefined): string {
