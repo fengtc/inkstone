@@ -688,6 +688,7 @@ export const EN_US_MESSAGES = {
     "settings.import": "Import",
     "settings.import_markdown_folder": "Import Markdown folder",
     "settings.import_markdown_folder_description": "Each subfolder becomes an Inkstone folder; only Markdown and text files are imported.",
+    "settings.import_to_root": "Import to root",
     "settings.select_folder": "Select folder",
     "settings.import_completed": "Import completed",
     "settings.import_failed": "Import failed",

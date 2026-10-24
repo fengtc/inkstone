@@ -689,6 +689,7 @@ export const ZH_CN_MESSAGES = {
     "settings.import": "导入",
     "settings.import_markdown_folder": "导入 Markdown 文件夹",
     "settings.import_markdown_folder_description": "每个子目录会创建为 Inkstone 文件夹，只导入 Markdown 和文本文件。",
+    "settings.import_to_root": "导入到根目录",
     "settings.select_folder": "选择文件夹",
     "settings.import_completed": "导入完成",
     "settings.import_failed": "导入失败",

@@ -167,6 +167,11 @@ transferRoutes.post('/import', async (c) => {
   const backupManifest = parsePostedBackupManifest(form.get('backupManifest'))
   const backupPaths = parsePostedBackupPaths(form.get('backupPaths'), files.length)
   const importPaths = parsePostedImportPaths(form.get('importPaths'), files.length)
+  const targetFolderId = parsePostedTargetFolderId(form.get('targetFolderId'))
+  if (targetFolderId) {
+    const folder = await c.env.DB.prepare(`SELECT id FROM folders WHERE id = ?1 AND user_id = ?2 AND deleted_at IS NULL`).bind(targetFolderId, userId).first()
+    if (!folder) throw ApiError.badRequest('The import target folder does not exist')
+  }
   const selectedFiles = files.map((file, index) => ({
     file,
     path: backupPaths?.[index] ?? importPaths?.[index] ?? file.name,
@@ -300,6 +305,7 @@ transferRoutes.post('/import', async (c) => {
               result,
               ftsEnabled,
               assets,
+              targetFolderId,
             })
           }
         }
@@ -312,7 +318,8 @@ transferRoutes.post('/import', async (c) => {
           byId,
           folderCache,
           result,
-          ftsEnabled,
+              ftsEnabled,
+              targetFolderId,
         })
       } else if (/\.(md|markdown|txt)$/i.test(name)) {
         if (file.size > LIMITS.contentMaxBytes) {
@@ -322,6 +329,7 @@ transferRoutes.post('/import', async (c) => {
           folderCache,
           result,
           ftsEnabled,
+          targetFolderId,
         })
       } else {
         addWarning(result, `Skipped unsupported file: ${selected.path}`)
@@ -352,6 +360,7 @@ interface ImportContext {
   ftsEnabled: boolean
   attachmentEntries?: Map<string, Uint8Array>
   assets?: ObsidianAssetIndex
+  targetFolderId?: string | null
 }
 
 interface SelectedImportFile {
@@ -403,6 +412,12 @@ function parsePostedImportPaths(value: string | File | null, count: number): str
     throw ApiError.badRequest('The import file list is invalid')
   }
   return parsed as string[]
+}
+
+function parsePostedTargetFolderId(value: string | File | null): string | null {
+  if (value === null) return null
+  if (typeof value !== 'string' || !isValidId(value)) throw ApiError.badRequest('The import target folder is invalid')
+  return value
 }
 
 async function importBackupFileBatch(
@@ -1283,7 +1298,12 @@ async function importMarkdown(
   const normalizedPath = path.replace(/\\/g, '/')
   const dir = normalizedPath.split('/').slice(0, -1).filter(Boolean)
   if (dir[0]?.toLowerCase() === 'notes') dir.shift()
-  const folderId = dir.length ? await ensureFolderPath(c.env.DB, userId, dir.join('/'), ctx) : null
+  const targetPath = ctx.targetFolderId
+    ? [...ctx.folderCache.entries()].find(([, id]) => id === ctx.targetFolderId)?.[0] ?? ''
+    : ''
+  const folderId = dir.length
+    ? await ensureFolderPath(c.env.DB, userId, targetPath ? `${targetPath}/${dir.join('/')}` : dir.join('/'), ctx)
+    : ctx.targetFolderId ?? null
 
   const filename = normalizedPath.split('/').pop() ?? path
   let content = stripObsidianComments(text)

@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { formatBytes, formatNumber } from '../../lib/time';
 import { Button } from '../../components/primitives';
 import { SettingsLoading as LoadingBlock } from './SettingsLoading';
-import { SettingRow } from '../../components/form';
+import { Select, SettingRow } from '../../components/form';
 import { confirm } from '../../components/overlay';
 import { useUi } from '../../store/ui';
 import { useNotes } from '../../store/notes';
@@ -18,6 +18,8 @@ export function DataSettings() {
     const [stats] = useSettingsResource(statsResource);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
+    const [folders, setFolders] = useState<import('@shared/types').Folder[]>([]);
+    const [importTargetFolderId, setImportTargetFolderId] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const backupFolderRef = useRef<HTMLInputElement>(null);
     const markdownFolderRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,8 @@ export function DataSettings() {
         setStatsError(null);
         try {
             await statsResource.load(force);
+            const folderResult = await api.folders.list();
+            if (mountedRef.current && epoch === statsEpoch.current) setFolders(folderResult.folders);
             if (mountedRef.current && epoch === statsEpoch.current) {
                 setStatsError(null);
             }
@@ -204,7 +208,10 @@ export function DataSettings() {
         }}/>
 
         <SettingRow title={t("settings.import_markdown_folder")} description={t("settings.import_markdown_folder_description")}>
-          <Button size="sm" icon={<FolderOpen size={13}/>} loading={busy === 'import-folder'} disabled={busy !== null} onClick={() => markdownFolderRef.current?.click()}>{t("settings.select_folder")}</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={importTargetFolderId ?? ''} onChange={(event) => setImportTargetFolderId(event.target.value || null)} className="min-w-[180px]"><option value="">{t("settings.import_to_root")}</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</Select>
+            <Button size="sm" icon={<FolderOpen size={13}/>} loading={busy === 'import-folder'} disabled={busy !== null} onClick={() => markdownFolderRef.current?.click()}>{t("settings.select_folder")}</Button>
+          </div>
         </SettingRow>
 
         <input ref={markdownFolderRef} type="file" hidden multiple accept=".md,.markdown,.txt" {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={async (event) => {
@@ -215,7 +222,7 @@ export function DataSettings() {
                 try {
                     const markdownFiles = files.filter((file) => /\.(md|markdown|txt)$/i.test(file.name));
                     const paths = markdownFiles.map((file) => file.webkitRelativePath || file.name);
-                    const result = await api.transfer.import(markdownFiles, 'newer', undefined, paths);
+                    const result = await api.transfer.import(markdownFiles, 'newer', undefined, paths, importTargetFolderId);
                     await reportImport(result);
                 } catch (err) {
                     toast({ title: t("settings.import_failed"), description: err instanceof Error ? err.message : String(err), tone: 'danger' });
