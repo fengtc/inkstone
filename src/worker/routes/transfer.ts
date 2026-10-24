@@ -166,9 +166,10 @@ transferRoutes.post('/import', async (c) => {
   }
   const backupManifest = parsePostedBackupManifest(form.get('backupManifest'))
   const backupPaths = parsePostedBackupPaths(form.get('backupPaths'), files.length)
+  const importPaths = parsePostedImportPaths(form.get('importPaths'), files.length)
   const selectedFiles = files.map((file, index) => ({
     file,
-    path: backupPaths?.[index] ?? file.name,
+    path: backupPaths?.[index] ?? importPaths?.[index] ?? file.name,
   }))
 
   const result: ImportResult = {
@@ -389,6 +390,17 @@ function parsePostedBackupPaths(value: string | File | null, count: number): str
     parsed.some((path) => !isSafeBackupPath(path))
   ) {
     throw ApiError.badRequest('The backup file list is invalid')
+  }
+  return parsed as string[]
+}
+
+function parsePostedImportPaths(value: string | File | null, count: number): string[] | null {
+  if (value === null) return null
+  if (typeof value !== 'string' || value.length > 1024 * 1024) throw ApiError.badRequest('The import file list is too large')
+  let parsed: unknown
+  try { parsed = JSON.parse(value) } catch { throw ApiError.badRequest('The import file list is not valid JSON') }
+  if (!Array.isArray(parsed) || parsed.length !== count || parsed.some((path) => !isSafeBackupPath(path))) {
+    throw ApiError.badRequest('The import file list is invalid')
   }
   return parsed as string[]
 }

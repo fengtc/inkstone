@@ -516,7 +516,7 @@ export const api = {
         form.append('backupManifest', JSON.stringify(backup.manifest))
         form.append('backupPaths', JSON.stringify(backup.paths))
       }
-      if (paths) form.append('backupPaths', JSON.stringify(paths))
+      if (paths) form.append('importPaths', JSON.stringify(paths))
       return request<ImportResult>('/api/import', { method: 'POST', formData: form })
     },
   },
