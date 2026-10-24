@@ -447,9 +447,10 @@ export const api = {
   },
 
   yinxiang: {
-    status: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang'),
+    status: () => request<{ configured: boolean; canConfigure: boolean; admin: { environment: 'sandbox' | 'production'; callbackUrl: string | null; consumerKeyHint: string; source: 'database' | 'environment' } | null; connection: YinxiangConnectionInfo | null }>('/api/yinxiang'),
+    saveAdmin: (body: { consumerKey: string; consumerSecret?: string; environment: 'sandbox' | 'production'; callbackUrl: string }) => request<{ configured: boolean; canConfigure: boolean; admin: { environment: 'sandbox' | 'production'; callbackUrl: string | null; consumerKeyHint: string; source: 'database' | 'environment' } | null; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/admin', { method: 'PUT', body }),
     connect: () => request<{ configured: boolean; status?: string; authorizationUrl?: string; expiresAt?: number }>('/api/yinxiang/connect', { method: 'POST' }),
-    saveSettings: (body: { selectedNotebookGuids?: string[]; rootFolderId?: string | null; includeAttachments?: boolean; frequency?: 'manual' | 'hourly' | 'daily' }) => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/settings', { method: 'POST', body }),
+    saveSettings: (body: { selectedNotebookGuids?: string[]; rootFolderId?: string | null; includeAttachments?: boolean; frequency?: 'manual' | 'hourly' | 'daily' }) => request<{ configured: boolean; canConfigure: boolean; admin: { environment: 'sandbox' | 'production'; callbackUrl: string | null; consumerKeyHint: string; source: 'database' | 'environment' } | null; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/settings', { method: 'POST', body }),
     sync: () => request<{ jobId: string; status: 'queued' }>('/api/yinxiang/sync', { method: 'POST' }),
     pause: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/pause', { method: 'POST' }),
     resume: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/resume', { method: 'POST' }),

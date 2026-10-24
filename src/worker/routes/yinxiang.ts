@@ -9,19 +9,37 @@ import { encryptYinxiangCredential } from '../lib/crypto'
 import { readJson } from '../lib/request'
 import { authorizeEndpoint, oauthEndpoint, requestOAuthEndpoint, YinxiangClient, assertNoteStoreUrl } from '../yinxiang/client'
 import { enqueueYinxiangSync, runYinxiangSync, runScheduledYinxiangSync, type YinxiangConnectionRow } from '../yinxiang/sync'
+import { loadYinxiangAppConfig, maskConsumerKey, saveYinxiangAppConfig, validateYinxiangCallbackUrl } from '../yinxiang/config'
 
 export const yinxiangRoutes = new Hono<AppBindings>()
 
-yinxiangRoutes.get('/', requireAuth, async (c) => c.json(await loadInfo(c.env, c.get('userId'))))
+yinxiangRoutes.get('/', requireAuth, async (c) => c.json(await loadInfo(c.env, c.get('userId'), c.get('user').role === 'owner')))
+
+yinxiangRoutes.put('/admin', requireAuth, async (c) => {
+  if (c.get('user').role !== 'owner') throw ApiError.forbidden('Only the owner can configure Yinxiang')
+  const body = await readJson<{ consumerKey?: unknown; consumerSecret?: unknown; environment?: unknown; callbackUrl?: unknown }>(c, 16 * 1024)
+  const existing = await loadYinxiangAppConfig(c.env)
+  const consumerKey = typeof body.consumerKey === 'string' ? body.consumerKey.trim() : existing?.consumerKey ?? ''
+  const consumerSecret = typeof body.consumerSecret === 'string' && body.consumerSecret.trim() ? body.consumerSecret.trim() : existing?.consumerSecret ?? ''
+  if (!consumerKey || !consumerSecret) throw ApiError.badRequest('Consumer Key and Consumer Secret are required')
+  if (consumerKey.length > 4096 || consumerSecret.length > 4096) throw ApiError.badRequest('Consumer credentials are too long')
+  const environment = body.environment === 'production' ? 'production' : body.environment === 'sandbox' ? 'sandbox' : existing?.environment ?? 'sandbox'
+  const callbackInput = typeof body.callbackUrl === 'string' && body.callbackUrl.trim() ? body.callbackUrl.trim() : existing?.callbackUrl ?? `${new URL(c.req.url).origin}/oauth/yinxiang/callback`
+  let callbackUrl: string
+  try { callbackUrl = validateYinxiangCallbackUrl(callbackInput, c.req.url, c.env.PUBLIC_URL) } catch (error) { throw ApiError.badRequest(error instanceof Error ? error.message : 'Invalid callback URL') }
+  await saveYinxiangAppConfig(c.env, c.get('userId'), { credential: { consumerKey, consumerSecret }, environment, callbackUrl })
+  return c.json(await loadInfo(c.env, c.get('userId'), true))
+})
 
 yinxiangRoutes.post('/connect', requireAuth, async (c) => {
-  const environment = c.env.YINXIANG_ENVIRONMENT === 'production' ? 'production' : 'sandbox'
-  const consumerKey = c.env.YINXIANG_CONSUMER_KEY?.trim()
-  const consumerSecret = c.env.YINXIANG_CONSUMER_SECRET?.trim()
-  if (!consumerKey || !consumerSecret) return c.json({ configured: false, status: 'not_configured' as const })
+  const config = await loadYinxiangAppConfig(c.env)
+  if (!config) return c.json({ configured: false, status: 'not_configured' as const })
+  const environment = config.environment
+  const consumerKey = config.consumerKey
+  const consumerSecret = config.consumerSecret
   const origin = new URL(c.req.url).origin
   const state = newId()
-  const callback = new URL(c.env.YINXIANG_CALLBACK_URL?.trim() || `${origin}/oauth/yinxiang/callback`)
+  const callback = new URL(config.callbackUrl || `${origin}/oauth/yinxiang/callback`)
   callback.searchParams.set('state', state)
   const stateHash = await sha256Hex(state)
   const temporary = await requestOAuthEndpoint(oauthEndpoint(environment), { consumerKey, consumerSecret }, { oauth_callback: callback.toString() }, fetch)
@@ -49,7 +67,7 @@ yinxiangRoutes.post('/settings', requireAuth, async (c) => {
   const frequency = body.frequency === undefined ? connection.frequency : body.frequency
   if (frequency !== 'manual' && frequency !== 'hourly' && frequency !== 'daily') throw ApiError.badRequest('frequency must be manual, hourly, or daily')
   await c.env.DB.prepare(`UPDATE source_connections SET selected_notebook_guids = ?1, root_folder_id = ?2, include_attachments = ?3, frequency = ?4, full_sync_before = CASE WHEN ?5 = 1 AND cursor > 0 THEN cursor ELSE full_sync_before END, next_run_at = CASE WHEN ?4 = 'manual' THEN NULL ELSE COALESCE(next_run_at, ?6) END, updated_at = ?6 WHERE id = ?7 AND user_id = ?8`).bind(JSON.stringify(selected), rootFolderId, includeAttachments, frequency, selectionChanged ? 1 : 0, Date.now(), connection.id, c.get('userId')).run()
-  return c.json(await loadInfo(c.env, c.get('userId')))
+  return c.json(await loadInfo(c.env, c.get('userId'), c.get('user').role === 'owner'))
 })
 
 yinxiangRoutes.post('/sync', requireAuth, async (c) => {
@@ -60,8 +78,8 @@ yinxiangRoutes.post('/sync', requireAuth, async (c) => {
   return c.json({ jobId, status: 'queued' as const })
 })
 
-yinxiangRoutes.post('/pause', requireAuth, async (c) => { await setPaused(c.env.DB, c.get('userId'), true); return c.json(await loadInfo(c.env, c.get('userId'))) })
-yinxiangRoutes.post('/resume', requireAuth, async (c) => { await setPaused(c.env.DB, c.get('userId'), false); return c.json(await loadInfo(c.env, c.get('userId'))) })
+yinxiangRoutes.post('/pause', requireAuth, async (c) => { await setPaused(c.env.DB, c.get('userId'), true); return c.json(await loadInfo(c.env, c.get('userId'), c.get('user').role === 'owner')) })
+yinxiangRoutes.post('/resume', requireAuth, async (c) => { await setPaused(c.env.DB, c.get('userId'), false); return c.json(await loadInfo(c.env, c.get('userId'), c.get('user').role === 'owner')) })
 yinxiangRoutes.post('/retry', requireAuth, async (c) => {
   const connection = await currentConnection(c.env.DB, c.get('userId'))
   if (!connection) throw ApiError.notFound('Yinxiang is not connected')
@@ -86,8 +104,9 @@ yinxiangCallbackRoutes.get('/', async (c) => {
   if (!state || state.user_id !== c.get('userId') || state.session_id !== c.get('sessionId') || !stateParam || !(await sha256Hex(stateParam) === state.state_hash)) return new Response('Yinxiang authorization binding is invalid.', { status: 400 })
   await c.env.DB.prepare(`UPDATE yinxiang_oauth_states SET consumed_at = ?1 WHERE id = ?2 AND consumed_at IS NULL`).bind(Date.now(), state.id).run()
   if (!verifier) return Response.redirect(`${new URL(c.req.url).origin}/?yinxiang=authorization-denied`, 303)
-  const consumerKey = c.env.YINXIANG_CONSUMER_KEY?.trim(); const consumerSecret = c.env.YINXIANG_CONSUMER_SECRET?.trim()
-  if (!consumerKey || !consumerSecret) return Response.redirect(`${new URL(c.req.url).origin}/?yinxiang=not-configured`, 303)
+  const config = await loadYinxiangAppConfig(c.env)
+  if (!config) return Response.redirect(`${new URL(c.req.url).origin}/?yinxiang=not-configured`, 303)
+  const consumerKey = config.consumerKey; const consumerSecret = config.consumerSecret
   const access = await requestOAuthEndpoint(oauthEndpoint(state.environment), { consumerKey, consumerSecret, token, tokenSecret: state.request_token_secret }, { oauth_verifier: verifier }, fetch)
   if (!access.oauth_token || !access.edam_userId || !access.edam_noteStoreUrl) return new Response('Yinxiang authorization response is incomplete.', { status: 502 })
   assertNoteStoreUrl(access.edam_noteStoreUrl, state.environment)
@@ -109,10 +128,10 @@ yinxiangCallbackRoutes.get('/', async (c) => {
 
 export async function runYinxiangScheduledTasks(env: AppBindings['Bindings']): Promise<void> { await runScheduledYinxiangSync(env) }
 
-async function loadInfo(env: AppBindings['Bindings'], userId: string): Promise<{ configured: boolean; connection: YinxiangConnectionInfo | null }> {
-  const configured = Boolean(env.YINXIANG_CONSUMER_KEY && env.YINXIANG_CONSUMER_SECRET)
+async function loadInfo(env: AppBindings['Bindings'], userId: string, canConfigure = false): Promise<{ configured: boolean; canConfigure: boolean; admin: { environment: 'sandbox' | 'production'; callbackUrl: string | null; consumerKeyHint: string; source: 'database' | 'environment' } | null; connection: YinxiangConnectionInfo | null }> {
+  const config = await loadYinxiangAppConfig(env)
   const row = await currentConnection(env.DB, userId)
-  return { configured, connection: row ? toInfo(row) : null }
+  return { configured: Boolean(config), canConfigure, admin: canConfigure && config ? { environment: config.environment, callbackUrl: config.callbackUrl, consumerKeyHint: maskConsumerKey(config.consumerKey), source: config.source } : null, connection: row ? toInfo(row) : null }
 }
 
 async function currentConnection(db: D1Database, userId: string): Promise<YinxiangConnectionRow | null> { return db.prepare(`SELECT * FROM source_connections WHERE user_id = ?1 AND provider = 'yinxiang' AND status <> 'disconnected' ORDER BY updated_at DESC LIMIT 1`).bind(userId).first<YinxiangConnectionRow>() }

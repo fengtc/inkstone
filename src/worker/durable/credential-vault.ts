@@ -5,12 +5,13 @@ const MASTER_KEY_NAME = 'backup-master-key-v1'
 const MASTER_KEY_BYTES = 32
 const MAX_REQUEST_BYTES = 24 * 1024
 const MAX_CIPHERTEXT_LENGTH = 24 * 1024
-const CREDENTIAL_SCOPE_PATTERN = /^(?:backup|totp|yinxiang):[0-9a-hjkmnp-tv-z]{26}$/
+const CREDENTIAL_SCOPE_PATTERN = /^(?:backup|totp|yinxiang|yinxiang-app):[0-9a-hjkmnp-tv-z]{26}$/
 const CIPHERTEXT_PATTERN = /^v1\.([A-Za-z0-9_-]+)$/
 const HKDF_SALT = utf8('inkstone.backup-credentials.v1')
 const BACKUP_SECRET_FIELDS = new Set(['password', 'accessKeyId', 'secretAccessKey'])
 const TOTP_SECRET_FIELDS = new Set(['secret'])
 const YINXIANG_SECRET_FIELDS = new Set(['oauthToken', 'oauthTokenSecret'])
+const YINXIANG_APP_SECRET_FIELDS = new Set(['consumerKey', 'consumerSecret'])
 
 type CredentialRecord = Record<string, string>
 
@@ -156,6 +157,8 @@ function isCredentialRecord(scope: string, value: unknown): value is CredentialR
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const allowed = scope.startsWith('totp:')
     ? TOTP_SECRET_FIELDS
+    : scope.startsWith('yinxiang-app:')
+      ? YINXIANG_APP_SECRET_FIELDS
     : scope.startsWith('yinxiang:')
       ? YINXIANG_SECRET_FIELDS
       : BACKUP_SECRET_FIELDS

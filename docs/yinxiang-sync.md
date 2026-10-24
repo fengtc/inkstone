@@ -26,6 +26,8 @@ YINXIANG_CALLBACK_URL = "https://notes.example.com/oauth/yinxiang/callback"
 # YINXIANG_CONSUMER_SECRET = "placeholder"
 ```
 
+也可以在已登录的站长账号中打开 **设置 → 中国版印象笔记**，在“印象笔记服务配置”区域填写 Consumer Key、Consumer Secret、生产/沙箱环境和 OAuth 回调地址。保存后 Secret 会写入 CredentialVault 加密存储，页面不会再次显示完整值；留空 Secret 可保留原值。数据库配置优先于环境变量配置。
+
 生产使用前，需要在印象笔记开发者中心申请并激活生产 API Key，并把回调地址加入应用配置。用户必须在官方印象笔记页面自行登录、授权或拒绝；Inkstone 不填写密码、验证码，也不保存 Cookie。
 
 ## 当前实现范围

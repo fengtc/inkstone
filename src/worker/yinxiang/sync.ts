@@ -8,6 +8,7 @@ import { sha256Hex } from '../lib/encoding'
 import type { Env } from '../env'
 import { convertEnmlToMarkdown } from './enml'
 import { YinxiangClient, type YinxiangNoteRecord } from './client'
+import { loadYinxiangAppConfig } from './config'
 
 const SYNC_PAGE_SIZE = 50
 const JOB_BUDGET_MS = 20_000
@@ -75,10 +76,11 @@ export async function runYinxiangSync(env: Env, jobId: string): Promise<Yinxiang
     if (!claimed.meta.changes) return await readJobResult(env.DB, jobId)
     const connection = await loadConnection(env.DB, job.user_id, job.connection_id)
     if (!connection || connection.status === 'disconnected' || connection.paused_at) return await finish(env.DB, jobId, 'paused', { error: 'Sync was paused or disconnected' })
-    if (!env.YINXIANG_CONSUMER_KEY || !env.YINXIANG_CONSUMER_SECRET || !connection.note_store_url || !connection.token_ciphertext) return await finish(env.DB, jobId, 'failed', { error: 'Yinxiang server configuration or credentials are missing' })
+    const config = await loadYinxiangAppConfig(env)
+    if (!config || !connection.note_store_url || !connection.token_ciphertext) return await finish(env.DB, jobId, 'failed', { error: 'Yinxiang server configuration or credentials are missing' })
     const credential = await decryptYinxiangCredential(env, job.user_id, connection.token_ciphertext)
     if (!credential) return await finish(env.DB, jobId, 'failed', { error: 'Yinxiang credentials could not be decrypted; reauthorization is required' })
-    const client = new YinxiangClient({ environment: connection.environment, consumerKey: env.YINXIANG_CONSUMER_KEY, consumerSecret: env.YINXIANG_CONSUMER_SECRET, token: credential.oauthToken, tokenSecret: credential.oauthTokenSecret, noteStoreUrl: connection.note_store_url })
+    const client = new YinxiangClient({ environment: connection.environment, consumerKey: config.consumerKey, consumerSecret: config.consumerSecret, token: credential.oauthToken, tokenSecret: credential.oauthTokenSecret, noteStoreUrl: connection.note_store_url })
     const state = await client.getSyncState()
     let cursor = connection.cursor
     if (connection.full_sync_before !== null && connection.full_sync_before > cursor) cursor = 0

@@ -3,7 +3,7 @@ import { ExternalLink, NotebookPen, Pause, Play, RefreshCw, Unplug } from 'lucid
 import type { Folder, YinxiangConnectionInfo } from '@shared/types'
 import { api } from '../../lib/api'
 import { Button } from '../../components/primitives'
-import { Checkbox, Select, SettingRow } from '../../components/form'
+import { Checkbox, Input, Select, SettingRow } from '../../components/form'
 import { confirm } from '../../components/overlay'
 import { useUi } from '../../store/ui'
 import { t } from '../../lib/i18n'
@@ -11,6 +11,12 @@ import { t } from '../../lib/i18n'
 export function YinxiangSettings() {
   const toast = useUi((state) => state.toast)
   const [configured, setConfigured] = useState<boolean | null>(null)
+  const [canConfigure, setCanConfigure] = useState(false)
+  const [consumerKeyHint, setConsumerKeyHint] = useState('')
+  const [consumerKey, setConsumerKey] = useState('')
+  const [consumerSecret, setConsumerSecret] = useState('')
+  const [environment, setEnvironment] = useState<'sandbox' | 'production'>('production')
+  const [callbackUrl, setCallbackUrl] = useState('')
   const [connection, setConnection] = useState<YinxiangConnectionInfo | null>(null)
   const [folders, setFolders] = useState<Folder[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -23,7 +29,13 @@ export function YinxiangSettings() {
     try {
       const result = await api.yinxiang.status()
       setConfigured(result.configured)
+      setCanConfigure(result.canConfigure)
       setConnection(result.connection)
+      if (result.admin) {
+        setConsumerKeyHint(result.admin.consumerKeyHint)
+        setEnvironment(result.admin.environment)
+        setCallbackUrl(result.admin.callbackUrl ?? `${window.location.origin}/oauth/yinxiang/callback`)
+      }
       if (result.connection) {
         setSelected(result.connection.selectedNotebookGuids)
         setIncludeAttachments(result.connection.includeAttachments)
@@ -44,6 +56,7 @@ export function YinxiangSettings() {
     try { await action() } catch (error) { toast({ title: t('common.action_failed'), description: error instanceof Error ? error.message : String(error), tone: 'danger' }) } finally { setBusy(null) }
   }
   const save = () => run('save', async () => { const result = await api.yinxiang.saveSettings({ selectedNotebookGuids: selected, rootFolderId, includeAttachments, frequency }); setConnection(result.connection); toast({ title: t('settings.yinxiang_settings_saved'), tone: 'success' }) })
+  const saveAdmin = () => run('admin', async () => { const result = await api.yinxiang.saveAdmin({ consumerKey, consumerSecret: consumerSecret || undefined, environment, callbackUrl }); setConfigured(result.configured); setConsumerKey(''); setConsumerSecret(''); setConsumerKeyHint(result.admin?.consumerKeyHint ?? ''); toast({ title: t('settings.yinxiang_admin_saved'), tone: 'success' }) })
   const connect = () => run('connect', async () => { const result = await api.yinxiang.connect(); if (result.authorizationUrl) window.location.assign(result.authorizationUrl); else toast({ title: t('settings.yinxiang_not_configured'), tone: 'warning' }) })
   const sync = () => run('sync', async () => { await api.yinxiang.sync(); toast({ title: t('settings.yinxiang_sync_queued'), tone: 'success' }); await load() })
   const disconnect = () => run('disconnect', async () => { if (!await confirm({ title: t('settings.yinxiang_disconnect_confirm'), tone: 'danger' })) return; await api.yinxiang.disconnect(); setConnection(null); toast({ title: t('settings.yinxiang_disconnected'), tone: 'success' }) })
@@ -53,6 +66,25 @@ export function YinxiangSettings() {
   const scope = useMemo(() => connection?.authorizedScopes.join(', ') ?? '', [connection])
 
   return <div className="space-y-6">
+    {canConfigure && <section>
+      <h3 className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-[var(--text-quaternary)]">{t('settings.yinxiang_admin_section')}</h3>
+      <div className="space-y-3 rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-base)] p-4">
+        <p className="text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">{t('settings.yinxiang_admin_description')}</p>
+        <SettingRow title={t('settings.yinxiang_consumer_key')} description={consumerKeyHint ? t('settings.yinxiang_current_value', { value0: consumerKeyHint }) : undefined}>
+          <Input value={consumerKey} onChange={(event) => setConsumerKey(event.target.value)} placeholder={consumerKeyHint || t('settings.yinxiang_consumer_key_placeholder')} autoComplete="off" className="min-w-[230px]" />
+        </SettingRow>
+        <SettingRow title={t('settings.yinxiang_consumer_secret')} description={t('settings.yinxiang_secret_not_displayed')}>
+          <Input type="password" value={consumerSecret} onChange={(event) => setConsumerSecret(event.target.value)} placeholder={t('settings.yinxiang_secret_placeholder')} autoComplete="new-password" className="min-w-[230px]" />
+        </SettingRow>
+        <SettingRow title={t('settings.yinxiang_environment')}>
+          <Select value={environment} onChange={(event) => setEnvironment(event.target.value as typeof environment)} className="min-w-[150px]"><option value="production">{t('settings.yinxiang_environment_production')}</option><option value="sandbox">{t('settings.yinxiang_environment_sandbox')}</option></Select>
+        </SettingRow>
+        <SettingRow title={t('settings.yinxiang_callback_url')} description={t('settings.yinxiang_callback_url_description')}>
+          <Input value={callbackUrl} onChange={(event) => setCallbackUrl(event.target.value)} placeholder="https://notes.example.com/oauth/yinxiang/callback" autoComplete="url" className="min-w-[280px]" />
+        </SettingRow>
+        <div className="pt-1"><Button size="sm" loading={busy === 'admin'} onClick={() => void saveAdmin()}>{t('settings.yinxiang_save_admin')}</Button></div>
+      </div>
+    </section>}
     <section className="rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-base)] p-4">
       <div className="flex items-start gap-3">
         <NotebookPen size={18} className="mt-0.5 text-[var(--accent)]" />

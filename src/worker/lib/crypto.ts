@@ -77,6 +77,36 @@ export async function decryptYinxiangCredential(
     : null
 }
 
+export interface YinxiangAppCredential {
+  consumerKey: string
+  consumerSecret: string
+}
+
+export async function encryptYinxiangAppCredential(
+  env: Env,
+  ownerId: string,
+  credential: YinxiangAppCredential,
+): Promise<string> {
+  if (!isValidId(ownerId) || !credential.consumerKey || !credential.consumerSecret || credential.consumerKey.length > 4096 || credential.consumerSecret.length > 4096) {
+    throw new Error('invalid_yinxiang_app_credential')
+  }
+  return encryptCredential(env, `yinxiang-app:${ownerId}`, credential)
+}
+
+export async function decryptYinxiangAppCredential(
+  env: Env,
+  ownerId: string,
+  stored: string,
+): Promise<YinxiangAppCredential | null> {
+  if (!isValidId(ownerId) || stored.length > 24 * 1024) return null
+  const value = await decryptCredential(env, `yinxiang-app:${ownerId}`, stored)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  return typeof record.consumerKey === 'string' && typeof record.consumerSecret === 'string'
+    ? { consumerKey: record.consumerKey, consumerSecret: record.consumerSecret }
+    : null
+}
+
 async function encryptCredential(env: Env, scope: string, value: unknown): Promise<string> {
   const response = await vaultRequest(env, '/encrypt', { scope, value })
   if (!response.ok) throw new CryptoUnavailableError()
