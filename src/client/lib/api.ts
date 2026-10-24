@@ -444,6 +444,7 @@ export const api = {
         return settings
       }),
     stats: () => request<Record<string, number>>('/api/settings/stats'),
+    clearData: (confirmation: string) => request<{ ok: true; notes: number; attachments: number }>('/api/settings/clear-data', { method: 'POST', body: { confirmation } }),
   },
 
   yinxiang: {

@@ -73,6 +73,28 @@ export function DataSettings() {
             }
         });
     };
+  const clearAllData = () => run('clear-data', async () => {
+    const ok = await confirm({
+      title: t('settings.clear_all_data_confirm_title'),
+      description: t('settings.clear_all_data_confirm_description'),
+      confirmLabel: t('settings.clear_all_data'),
+      tone: 'danger',
+    });
+    if (!ok) return;
+    const typed = window.prompt(t('settings.clear_all_data_prompt'));
+    if (typed !== 'DELETE ALL') {
+      toast({ title: t('settings.clear_all_data_cancelled'), tone: 'warning' });
+      return;
+    }
+    try {
+      const result = await api.settings.clearData(typed);
+      await pull({ force: true });
+      void loadStats();
+      toast({ title: t('settings.clear_all_data_completed'), description: t('settings.clear_all_data_completed_description', { value0: result.notes, value1: result.attachments }), tone: 'success', duration: 7000 });
+    } catch (error) {
+      toast({ title: t('settings.clear_all_data_failed'), description: error instanceof Error ? error.message : String(error), tone: 'danger' });
+    }
+  });
     const reportImport = async (result: Awaited<ReturnType<typeof api.transfer.import>>) => {
         const refreshed = await pull({ force: true }).then(() => true, () => false);
         void loadStats();
@@ -136,6 +158,13 @@ export function DataSettings() {
           {stats.attachmentBytes ? (<p className="mt-2 text-[11.5px] text-[var(--text-quaternary)]">{t("settings.attachment_storage")}{formatBytes(stats.attachmentBytes)}
             </p>) : null}
         </>)}
+      </section>
+
+      <section>
+        <h3 className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-[var(--danger)]">{t("settings.danger_zone")}</h3>
+        <SettingRow title={t("settings.clear_all_data")} description={t("settings.clear_all_data_description")}>
+          <Button size="sm" variant="ghost" icon={<Trash2 size={13}/>} className="text-[var(--danger)]" loading={busy === 'clear-data'} disabled={busy !== null} onClick={() => void clearAllData()}>{t("settings.clear_all_data")}</Button>
+        </SettingRow>
       </section>
 
       <section>

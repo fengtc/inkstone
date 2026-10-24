@@ -8,6 +8,9 @@ import { setAllowRegistration } from '../lib/instance-settings'
 import { requireCurrentPassword } from '../lib/reauth'
 import { JSON_BODY_LIMITS, readJson } from '../lib/request'
 import { requireAuth } from '../middleware/auth'
+import { acquireLease } from '../lib/lease'
+import { attachmentObjectKey, type AttachmentObjectStorage } from '../attachments/keys'
+import { deleteAttachmentObjects } from '../attachments/backend'
 
 export const settingsRoutes = new Hono<AppBindings>()
 
@@ -92,6 +95,56 @@ settingsRoutes.get('/stats', async (c) => {
     links: row?.links ?? 0,
   })
 })
+
+settingsRoutes.post('/clear-data', async (c) => {
+  const userId = c.get('userId')
+  const body = await readJson<{ confirmation?: unknown }>(c, 4096)
+  if (body.confirmation !== 'DELETE ALL') throw ApiError.badRequest('Type DELETE ALL to confirm this operation')
+  const release = await acquireLease(c.env.DB, `clear-user-data:${userId}`, 5 * 60 * 1000, 'A data operation is already running for this account')
+  try {
+    const attachments = await c.env.DB.prepare(
+      `SELECT id, user_id, filename, mime, storage FROM attachments WHERE user_id = ?1`,
+    ).bind(userId).all<{ id: string; user_id: string; filename: string; mime: string; storage: AttachmentObjectStorage }>()
+    const before = await c.env.DB.prepare(`SELECT COUNT(*) AS notes FROM notes WHERE user_id = ?1`).bind(userId).first<{ notes: number }>()
+    const statements: D1PreparedStatement[] = [
+      c.env.DB.prepare(`DELETE FROM note_tags WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?1)`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM links WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM note_versions WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM source_resources WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM source_items WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM sync_jobs WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM yinxiang_oauth_states WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM source_connections WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM import_mappings WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM changes WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM fts_index_queue WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM ai_index_queue WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM ai_note_embeddings WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM attachments WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM attachment_cleanup WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM note_tags WHERE tag_id IN (SELECT id FROM tags WHERE user_id = ?1)`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM tags WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM notes WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM folders WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM shares WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM mcp_operations WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM mcp_api_keys WHERE user_id = ?1`).bind(userId),
+      c.env.DB.prepare(`DELETE FROM mcp_preferences WHERE user_id = ?1`).bind(userId),
+    ]
+    if (c.get('database').ftsEnabled) statements.push(c.env.DB.prepare(`DELETE FROM notes_fts WHERE user_id = ?1`).bind(userId))
+    await c.env.DB.batch(statements)
+    const groups = new Map<AttachmentObjectStorage, string[]>([['r2', []], ['kv', []]])
+    for (const row of attachments.results) groups.get(row.storage)?.push(attachmentObjectKey(row))
+    for (const storage of ['r2', 'kv'] as const) {
+      const keys = groups.get(storage)!
+      if (keys.length) await deleteAttachmentObjects(c.env, storage, keys)
+    }
+    return c.json({ ok: true, notes: before?.notes ?? 0, attachments: attachments.results.length })
+  } finally {
+    await release()
+  }
+})
+
 
 function parse(raw: string): Record<string, unknown> {
   try {
