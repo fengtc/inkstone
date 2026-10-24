@@ -16,7 +16,7 @@
 - 尚未配置真实印象笔记 API Key，也未使用真实账号授权；因此没有真实账号同步证据。
 - 需要在沙箱环境运行本地 Worker E2E，验证 Thrift 响应字段和资源二进制字段与当前 API 版本一致。
 - 需要补齐针对 OAuth 回调、旧凭据兼容、同步租约和跨用户隔离的 D1/DO 单元/E2E 测试，并修复类型检查发现的问题。
-- 生产 Key 激活、生产部署和生产 D1/R2/KV 均未执行。
+- 生产 Key 激活和真实账号联调仍未执行；代码已通过现有 Cloudflare Workers Builds 自动部署到 `inkstone` production。
 
 ## 本轮验证
 
@@ -28,6 +28,7 @@
 - `npm run comments:check`：仓库现有注释白名单问题，涉及多个原有文件；本次新增文件未添加不必要注释。
 - `npm run build`、`npm run dev`：被当前 Windows ARM64 环境的 `workerd` 安装包报错 `Unsupported platform: win32 arm64 LE` 阻断。
 - `npm run test:e2e`：未启动本地 Worker，连接 `localhost:7712` 被拒绝；原因是上述 Worker 运行时无法启动。
+- Cloudflare Workers Builds：通过。Build ID `df24cf59-b240-482e-8843-5669b8e3dfb0`，Version ID `718c057c-8823-485a-ba64-ad093504a578`。
 
 ## 下一步
 
