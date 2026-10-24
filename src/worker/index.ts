@@ -10,6 +10,7 @@ import { purgeExpiredMcpOperations } from './mcp/operations'
 import { purgeExpiredOperationalData } from './lib/maintenance'
 import { ApiError } from './lib/errors'
 import { normalizeRepeatedOAuthResource } from './lib/oauth-request'
+import { runYinxiangScheduledTasks } from './routes/yinxiang'
 
 export { SyncHub } from './realtime/sync-hub'
 export { CredentialVault } from './durable/credential-vault'
@@ -53,6 +54,7 @@ export default {
         providerForScheduled(env).purgeExpiredData(env, { batchSize: 100 }),
         drainAiIndexQueue(env, 300),
         drainAllFtsQueues(env.DB),
+        runYinxiangScheduledTasks(env),
       ])
     })())
   },

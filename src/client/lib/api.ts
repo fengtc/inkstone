@@ -36,6 +36,7 @@ import type {
   TotpStatus,
   UpdateCheckResponse,
   UserSettings,
+  YinxiangConnectionInfo,
 } from '@shared/types'
 import { publishBroadcast } from './db'
 import { getLocale, t, translateApiError } from './i18n'
@@ -443,6 +444,17 @@ export const api = {
         return settings
       }),
     stats: () => request<Record<string, number>>('/api/settings/stats'),
+  },
+
+  yinxiang: {
+    status: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang'),
+    connect: () => request<{ configured: boolean; status?: string; authorizationUrl?: string; expiresAt?: number }>('/api/yinxiang/connect', { method: 'POST' }),
+    saveSettings: (body: { selectedNotebookGuids?: string[]; rootFolderId?: string | null; includeAttachments?: boolean; frequency?: 'manual' | 'hourly' | 'daily' }) => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/settings', { method: 'POST', body }),
+    sync: () => request<{ jobId: string; status: 'queued' }>('/api/yinxiang/sync', { method: 'POST' }),
+    pause: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/pause', { method: 'POST' }),
+    resume: () => request<{ configured: boolean; connection: YinxiangConnectionInfo | null }>('/api/yinxiang/resume', { method: 'POST' }),
+    retry: () => request<{ jobId: string; status: 'queued' }>('/api/yinxiang/retry', { method: 'POST' }),
+    disconnect: () => request<{ ok: true }>('/api/yinxiang', { method: 'DELETE' }),
   },
 
   mcp: {

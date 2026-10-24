@@ -20,6 +20,7 @@ import { mcpAuthorizeRoutes } from './routes/mcp-authorize'
 import { mcpSettingsRoutes } from './routes/mcp-settings'
 import type { AppBindings } from './env'
 import { selectAttachmentStorage } from './attachments/backend'
+import { yinxiangRoutes, yinxiangCallbackRoutes } from './routes/yinxiang'
 
 export function createApp() {
   const app = new Hono<AppBindings>()
@@ -66,6 +67,10 @@ export function createApp() {
 
   app.use('/api/*', loadSession)
   app.use('/authorize', loadSession)
+  app.use('/oauth/yinxiang/callback', async (c, next) => {
+    c.set('database', await initializeDatabase(c.env))
+    await loadSession(c, next)
+  })
 
   app.get('/api/health', async (c) => {
     const database = c.get('database')
@@ -100,6 +105,7 @@ export function createApp() {
   app.route('/api/share', shareManageRoutes)
   app.route('/api/public', shareRoutes)
   app.route('/api', transferRoutes)
+  app.route('/api/yinxiang', yinxiangRoutes)
 
   app.all('/api/*', () => {
     throw ApiError.notFound('API endpoint not found')
@@ -108,6 +114,7 @@ export function createApp() {
 
   app.route('/s', sharePageRoutes)
   app.route('/', mcpAuthorizeRoutes)
+  app.route('/oauth/yinxiang/callback', yinxiangCallbackRoutes)
 
 
   app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))

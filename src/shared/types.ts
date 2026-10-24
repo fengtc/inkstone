@@ -136,6 +136,64 @@ export interface SyncSettings {
   pollIntervalMs: number
 }
 
+export type YinxiangConnectionStatus =
+  | 'not_configured'
+  | 'not_connected'
+  | 'pending_authorization'
+  | 'connected'
+  | 'queued'
+  | 'syncing'
+  | 'paused'
+  | 'partial'
+  | 'reauthorization_required'
+  | 'failed'
+  | 'disconnected'
+
+export type YinxiangSyncFrequency = 'manual' | 'hourly' | 'daily'
+
+export interface YinxiangNotebook {
+  guid: string
+  name: string
+  stackName: string | null
+  shared: boolean
+  application: boolean
+  canRead: boolean
+}
+
+export interface YinxiangSyncStats {
+  discovered: number
+  processed: number
+  created: number
+  updated: number
+  skipped: number
+  conflicts: number
+  failed: number
+  attachmentFailed: number
+}
+
+export interface YinxiangConnectionInfo {
+  id: string
+  provider: 'yinxiang'
+  environment: 'sandbox' | 'production'
+  status: YinxiangConnectionStatus
+  accountId: string | null
+  accountLabel: string | null
+  tokenExpiresAt: number | null
+  authorizedScopes: string[]
+  notebooks: YinxiangNotebook[]
+  selectedNotebookGuids: string[]
+  rootFolderId: string | null
+  includeAttachments: boolean
+  frequency: YinxiangSyncFrequency
+  lastSuccessAt: number | null
+  nextRunAt: number | null
+  lastError: string | null
+  syncStats: YinxiangSyncStats
+  activeJobId: string | null
+  pausedAt: number | null
+  updatedAt: number
+}
+
 export interface UserSettings {
   appearance: AppearanceSettings
   editor: EditorSettings

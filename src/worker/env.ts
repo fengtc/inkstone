@@ -23,6 +23,11 @@ export interface Env {
 
   PUBLIC_URL?: string
 
+  YINXIANG_CONSUMER_KEY?: string
+  YINXIANG_CONSUMER_SECRET?: string
+  YINXIANG_ENVIRONMENT?: 'sandbox' | 'production'
+  YINXIANG_CALLBACK_URL?: string
+
   /** Workers AI binding for semantic search; optional so AI search degrades gracefully. */
   AI?: {
     run: <T = unknown>(model: string, inputs: unknown) => Promise<T>

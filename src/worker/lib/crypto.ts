@@ -47,6 +47,36 @@ export async function decryptTotpSecret(
   return typeof secret === 'string' && /^[A-Z2-7]{32}$/.test(secret) ? secret : null
 }
 
+export interface YinxiangCredential {
+  oauthToken: string
+  oauthTokenSecret: string
+}
+
+export async function encryptYinxiangCredential(
+  env: Env,
+  userId: string,
+  credential: YinxiangCredential,
+): Promise<string> {
+  if (!isValidId(userId) || !credential.oauthToken || credential.oauthToken.length > 4096 || credential.oauthTokenSecret.length > 4096) {
+    throw new Error('invalid_yinxiang_credential')
+  }
+  return encryptCredential(env, `yinxiang:${userId}`, credential)
+}
+
+export async function decryptYinxiangCredential(
+  env: Env,
+  userId: string,
+  stored: string,
+): Promise<YinxiangCredential | null> {
+  if (!isValidId(userId) || stored.length > 24 * 1024) return null
+  const value = await decryptCredential(env, `yinxiang:${userId}`, stored)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  return typeof record.oauthToken === 'string' && typeof record.oauthTokenSecret === 'string'
+    ? { oauthToken: record.oauthToken, oauthTokenSecret: record.oauthTokenSecret }
+    : null
+}
+
 async function encryptCredential(env: Env, scope: string, value: unknown): Promise<string> {
   const response = await vaultRequest(env, '/encrypt', { scope, value })
   if (!response.ok) throw new CryptoUnavailableError()

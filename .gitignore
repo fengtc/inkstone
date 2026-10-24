@@ -38,6 +38,10 @@ worker-configuration.d.ts
 
 # Private project documentation
 /docs/
+!/docs/
+/docs/*
+!/docs/yinxiang-sync.md
+!/docs/yinxiang-sync-progress.md
 RELEASE_NOTES.md
 
 # Test and temporary artifacts

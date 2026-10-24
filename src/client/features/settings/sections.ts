@@ -1,12 +1,13 @@
 import { backupRunsResource, backupTargetsResource, mcpResource, statsResource, totpResource } from './resources'
 import { useSession } from '../../store/session'
 
-export type SettingsSection = 'appearance' | 'editor' | 'backup' | 'sync' | 'mcp' | 'account' | 'data' | 'shares' | 'about'
+export type SettingsSection = 'appearance' | 'editor' | 'backup' | 'sync' | 'yinxiang' | 'mcp' | 'account' | 'data' | 'shares' | 'about'
 
 export const settingsLoaders = {
   editor: () => import('./EditorSettings').then((m) => ({ default: m.EditorSettings })),
   backup: () => import('./BackupSettings').then((m) => ({ default: m.BackupSettings })),
   sync: () => import('./SyncSettings').then((m) => ({ default: m.SyncSettings })),
+  yinxiang: () => import('./YinxiangSettings').then((m) => ({ default: m.YinxiangSettings })),
   mcp: () => import('./McpSettings').then((m) => ({ default: m.McpSettings })),
   account: () => import('./AccountSettings').then((m) => ({ default: m.AccountSettings })),
   data: () => import('./DataSettings').then((m) => ({ default: m.DataSettings })),
