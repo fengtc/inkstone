@@ -20,6 +20,7 @@ export function DataSettings() {
     const [busy, setBusy] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const backupFolderRef = useRef<HTMLInputElement>(null);
+    const markdownFolderRef = useRef<HTMLInputElement>(null);
     const busyRef = useRef<string | null>(null);
     const statsEpoch = useRef(0);
     const mountedRef = useRef(true);
@@ -175,6 +176,26 @@ export function DataSettings() {
                     await reportImport(result);
                 }
                 catch (err) {
+                    toast({ title: t("settings.import_failed"), description: err instanceof Error ? err.message : String(err), tone: 'danger' });
+                }
+            });
+        }}/>
+
+        <SettingRow title={t("settings.import_markdown_folder")} description={t("settings.import_markdown_folder_description")}>
+          <Button size="sm" icon={<FolderOpen size={13}/>} loading={busy === 'import-folder'} disabled={busy !== null} onClick={() => markdownFolderRef.current?.click()}>{t("settings.select_folder")}</Button>
+        </SettingRow>
+
+        <input ref={markdownFolderRef} type="file" hidden multiple accept=".md,.markdown,.txt" {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={async (event) => {
+            const files = [...(event.target.files ?? [])];
+            event.target.value = '';
+            if (!files.length) return;
+            await run('import-folder', async () => {
+                try {
+                    const markdownFiles = files.filter((file) => /\.(md|markdown|txt)$/i.test(file.name));
+                    const paths = markdownFiles.map((file) => file.webkitRelativePath || file.name);
+                    const result = await api.transfer.import(markdownFiles, 'newer', undefined, paths);
+                    await reportImport(result);
+                } catch (err) {
                     toast({ title: t("settings.import_failed"), description: err instanceof Error ? err.message : String(err), tone: 'danger' });
                 }
             });

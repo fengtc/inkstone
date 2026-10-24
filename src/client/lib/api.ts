@@ -507,6 +507,7 @@ export const api = {
       files: File[],
       conflict: 'skip' | 'newer' | 'duplicate' = 'newer',
       backup?: { manifest: MarkdownBackupManifest; paths: string[] },
+      paths?: string[],
     ) => {
       const form = new FormData()
       for (const file of files) form.append('file', file)
@@ -515,6 +516,7 @@ export const api = {
         form.append('backupManifest', JSON.stringify(backup.manifest))
         form.append('backupPaths', JSON.stringify(backup.paths))
       }
+      if (paths) form.append('backupPaths', JSON.stringify(paths))
       return request<ImportResult>('/api/import', { method: 'POST', formData: form })
     },
   },
